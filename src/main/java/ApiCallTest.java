@@ -1,5 +1,6 @@
 import io.swagger.client.ApiClient;
 import io.swagger.client.ApiException;
+import io.swagger.client.ApiResponse;
 import io.swagger.client.api.SkiersApi;
 import io.swagger.client.model.LiftRide;
 
@@ -15,7 +16,8 @@ public class ApiCallTest {
             LiftRide inputLiftRide = new LiftRide();
             inputLiftRide.setLiftID(21);
             inputLiftRide.setTime(271);
-            apiInstance.writeNewLiftRide(inputLiftRide,1, "2019", "1", 123);
+            ApiResponse output = apiInstance.writeNewLiftRideWithHttpInfo(inputLiftRide,1, "2019", "1", 123);
+            System.out.println(output.getStatusCode());
         } catch (ApiException e) {
             System.err.println("Exception when calling ResortsApi#getResorts");
             e.printStackTrace();
