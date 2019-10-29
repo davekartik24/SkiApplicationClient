@@ -1,7 +1,6 @@
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class UploadDayLiftRidesPhases {
@@ -13,6 +12,8 @@ public class UploadDayLiftRidesPhases {
     private final int numLifts;
     private final int numRuns;
     private final String serverAddress;
+    private int totalRequest;
+    public final ArrayBlockingQueue<ThreadStatistics> totalStats;
 
     public UploadDayLiftRidesPhases(int numThreads, int numSkiers, int numLifts, int numRuns, String serverAddress) {
         this.numThreads = numThreads;
@@ -20,9 +21,11 @@ public class UploadDayLiftRidesPhases {
         this.numLifts = numLifts;
         this.numRuns = numRuns;
         this.serverAddress = serverAddress;
+        this.totalRequest = (int) ((((numRuns * 0.1) * (numSkiers / (numThreads/4)) * (numThreads/4)) * 2) + (((numRuns * 0.8) * (numSkiers / numThreads)) * numThreads));
+        this.totalStats = new ArrayBlockingQueue<>(totalRequest);
     }
 
-    public void initiate() throws InterruptedException {
+    public void initiate() throws InterruptedException, IOException {
 
         int firstPhaseNumThreads = numThreads/4;
         int secondPhaseCountDown = (int) (firstPhaseNumThreads * 0.1);
@@ -39,7 +42,8 @@ public class UploadDayLiftRidesPhases {
             int endSkierIdRange = getThreadEndSkierIDRange(firstPhaseNumThreads, i);
             firstPhaseThreadPool
                     .execute(new UploadDayLiftRides(firstPhaseNumThreads, numSkiers, numLifts, numRuns, startSkierIdRange,
-                            endSkierIdRange, firstPhaseStartTime, firstPhaseEndTime, 0.1, serverAddress, firstPhaseLatch));
+                            endSkierIdRange, firstPhaseStartTime, firstPhaseEndTime, 0.1, serverAddress,
+                            firstPhaseLatch, totalStats));
         }
         firstPhaseThreadPool.shutdown();
         firstPhaseLatch.await();
@@ -57,7 +61,7 @@ public class UploadDayLiftRidesPhases {
             int endSkierIdRange = getThreadEndSkierIDRange(secondPhaseNumThreads, i);
             secondPhaseThreadPool
                     .execute(new UploadDayLiftRides(secondPhaseNumThreads, numSkiers, numLifts, numRuns, startSkierIdRange,
-                            endSkierIdRange, secondPhaseStartTime, secondPhaseEndTime, 0.8, serverAddress, secondPhaseLatch));
+                            endSkierIdRange, secondPhaseStartTime, secondPhaseEndTime, 0.8, serverAddress, secondPhaseLatch, totalStats));
         }
         secondPhaseThreadPool.shutdown();
         secondPhaseLatch.await();
@@ -73,7 +77,7 @@ public class UploadDayLiftRidesPhases {
             int endSkierIdRange = getThreadEndSkierIDRange(thirdPhaseNumThreads, i);
             thirdPhaseThreadPool
                     .execute(new UploadDayLiftRides(thirdPhaseNumThreads, numSkiers, numLifts, numRuns, startSkierIdRange,
-                            endSkierIdRange, thirdPhaseStartTime, thirdPhaseEndTime, 0.1, serverAddress, null));
+                            endSkierIdRange, thirdPhaseStartTime, thirdPhaseEndTime, 0.1, serverAddress, null, totalStats));
         }
 
         thirdPhaseThreadPool.shutdown();
@@ -86,11 +90,40 @@ public class UploadDayLiftRidesPhases {
 
         int unsuccessfulRequest = badRequestCounter.get();
 
-        int totalRequest =  (int) ((((numRuns * 0.1) * (numSkiers / firstPhaseNumThreads)) * firstPhaseNumThreads * 2) + (((numRuns * 0.8) * (numSkiers / secondPhaseNumThreads)) * secondPhaseNumThreads));
+        try (FileWriter fw = new FileWriter("totalStats.csv")) {
+            for (ThreadStatistics element : totalStats) {
+                fw.write(element.toString() + "\n");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        BufferedReader in = new BufferedReader(new FileReader("totalStats.csv"));
+        String str;
+
+        List<Integer> totalStatsResponseTime = new ArrayList<>();
+        while((str = in.readLine()) != null){
+            String[] input = str.split(" ");
+            if(input.length == 5) {
+                totalStatsResponseTime.add(Integer.parseInt(input[2]));
+            }
+        }
+
+        IntSummaryStatistics stats = totalStatsResponseTime.stream()
+                .mapToInt((x) -> x)
+                .summaryStatistics();
+
+        long wallTime = TimeUnit.MILLISECONDS.toSeconds(endTime - startTime);
 
         System.out.println("Number of successful requests: " + (totalRequest - unsuccessfulRequest));
         System.out.println("Number of unsuccessful requests: " + unsuccessfulRequest);
-        System.out.println("The total run time (wall time) of the all phases to complete: " + TimeUnit.MILLISECONDS.toSeconds(endTime - startTime));
+        System.out.println("The total run time (wall time) of the all phases to complete: " + wallTime);
+        System.out.println("The statistics of the run -> ");
+        System.out.println("Mean Response time: " + stats.getAverage());
+        System.out.println("Median response time: " + median(totalStatsResponseTime));
+        System.out.println("Throughput: " + (stats.getCount()/wallTime));
+        System.out.println("99th Percentile response time: " + percentile(totalStatsResponseTime, 99));
+        System.out.println("Maximum Response Time: " + stats.getMax());
     }
 
     private int getThreadStartSkierIDRange(int firstPhaseNumThreads, int threadCounter) {
@@ -99,5 +132,22 @@ public class UploadDayLiftRidesPhases {
 
     private int getThreadEndSkierIDRange(int firstPhaseNumThreads, int threadCounter) {
         return ((numSkiers/firstPhaseNumThreads) * (threadCounter + 1));
+    }
+
+    private int percentile(List<Integer> latencies, double Percentile)
+    {
+        Collections.sort(latencies);
+        int index = (int)Math.ceil(((double)Percentile / (double)100) * (double)latencies.size());
+        return latencies.get(index-1);
+    }
+
+    private double median(List<Integer> latencies) {
+        Collections.sort(latencies);
+        double median;
+        if (latencies.size() % 2 == 0)
+            median = ((double)latencies.get(latencies.size()/2) + (double)latencies.get(latencies.size()/2 - 1))/2;
+        else
+            median = (double) latencies.get(latencies.size()/2);
+        return median;
     }
 }

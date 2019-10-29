@@ -4,6 +4,9 @@ import io.swagger.client.ApiResponse;
 import io.swagger.client.api.SkiersApi;
 import io.swagger.client.model.LiftRide;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -24,9 +27,11 @@ public class UploadDayLiftRides implements Runnable {
     private final double meanPercentage;
     private final String serverAddress;
     private final CountDownLatch latch;
+    private final ArrayBlockingQueue<ThreadStatistics> totalStats;
 
     public UploadDayLiftRides(int numThreads, int numSkiers, int numLifts, int numRuns, int startSkierIDRange, int endSkierIDRange,
-                              int startTime, int endTime, double meanPercentage, String serverAddress, CountDownLatch latch) {
+                              int startTime, int endTime, double meanPercentage, String serverAddress, CountDownLatch latch,
+                              ArrayBlockingQueue<ThreadStatistics> totalStats) {
         this.numThreads = numThreads;
         this.numSkiers = numSkiers;
         this.numLifts = numLifts;
@@ -38,11 +43,13 @@ public class UploadDayLiftRides implements Runnable {
         this.meanPercentage = meanPercentage;
         this.serverAddress = serverAddress;
         this.latch = latch;
+        this.totalStats = totalStats;
     }
 
     @Override
     public void run() {
         int numberOfRequest = (int) ((numRuns*meanPercentage)*(numSkiers/numThreads));
+        List<ThreadStatistics> localStats = new ArrayList<>(numberOfRequest);
 
         for (int i = 0; i < numberOfRequest; i++) {
             int skierID = ThreadLocalRandom.current().nextInt(startSkierIDRange, endSkierIDRange + 1);
@@ -56,9 +63,15 @@ public class UploadDayLiftRides implements Runnable {
                 LiftRide inputLiftRide = new LiftRide();
                 inputLiftRide.setLiftID(liftID);
                 inputLiftRide.setTime(time);
+
+                long startTime = System.currentTimeMillis();
                 ApiResponse output = apiInstance
                         .writeNewLiftRideWithHttpInfo(inputLiftRide,1, "2019", "1", skierID);
+                long endTime = System.currentTimeMillis();
+
                 int statusCode = output.getStatusCode();
+
+                localStats.add(new ThreadStatistics(startTime, endTime, statusCode));
 
                 if (statusCode/100 == 4) {
                     System.out.println("Error 4xx");
@@ -77,6 +90,7 @@ public class UploadDayLiftRides implements Runnable {
                 logger.error("Exception when calling ResortsApi#getResorts");
             }
         }
+        totalStats.addAll(localStats);
         if (latch != null) {
             latch.countDown();
         }
