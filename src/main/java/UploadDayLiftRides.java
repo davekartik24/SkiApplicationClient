@@ -47,12 +47,11 @@ public class UploadDayLiftRides implements Runnable {
         for (int i = 0; i < numberOfRequest; i++) {
             int skierID = ThreadLocalRandom.current().nextInt(startSkierIDRange, endSkierIDRange + 1);
             int liftID = ThreadLocalRandom.current().nextInt(1, numLifts + 1);
-            int time = endTime - startTime;
+            int time = ThreadLocalRandom.current().nextInt(startTime, endTime + 1);
 
-            String basePath = serverAddress;
             SkiersApi apiInstance = new SkiersApi();
             ApiClient client = apiInstance.getApiClient();
-            client.setBasePath(basePath);
+            client.setBasePath(serverAddress);
             try {
                 LiftRide inputLiftRide = new LiftRide();
                 inputLiftRide.setLiftID(liftID);
@@ -62,17 +61,24 @@ public class UploadDayLiftRides implements Runnable {
                 int statusCode = output.getStatusCode();
 
                 if (statusCode/100 == 4) {
+                    System.out.println("Error 4xx");
+                    UploadDayLiftRidesPhases.badRequestCounter.incrementAndGet();
                     logger.error("Invalid inputs supplied");
                 }
 
                 if(statusCode/100 == 5) {
+                    System.out.println("Error 5xx");
+                    UploadDayLiftRidesPhases.badRequestCounter.incrementAndGet();
                     logger.error("Web Server Error");
                 }
             } catch (ApiException e) {
+                System.out.println("Error" + e.getMessage());
+                UploadDayLiftRidesPhases.badRequestCounter.incrementAndGet();
                 logger.error("Exception when calling ResortsApi#getResorts");
-            } finally {
-                latch.countDown();
             }
+        }
+        if (latch != null) {
+            latch.countDown();
         }
     }
 }
