@@ -2,7 +2,7 @@ import java.util.Scanner;
 
 public class Main {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
 
         try (Scanner scanner = new Scanner(System.in)) {
 
@@ -21,10 +21,11 @@ public class Main {
             int numRuns = scanner.nextInt();
 
             System.out.println("IP/Port address of the server");
+//            "http://ec2-54-186-128-171.us-west-2.compute.amazonaws.com:8080/SkierAssignment_war"
             String serverAddress = scanner.next();
 
             UploadDayLiftRidesPhases uploadDayLiftRides = new UploadDayLiftRidesPhases(numThreads, numSkiers, numLifts, numRuns, serverAddress);
-
+            uploadDayLiftRides.initiate();
         }
     }
 }

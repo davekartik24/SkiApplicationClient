@@ -22,14 +22,7 @@ public class UploadDayLiftRidesPhases {
         this.serverAddress = serverAddress;
     }
 
-    public static void main(String[] args) throws InterruptedException {
-        UploadDayLiftRidesPhases obj = new UploadDayLiftRidesPhases(256, 20000, 40, 20, "http://ec2-54-186-128-171.us-west-2.compute.amazonaws.com:8080/SkierAssignment_war");
-        obj.initiate();
-    }
-
     public void initiate() throws InterruptedException {
-
-        int total = 0;
 
         int firstPhaseNumThreads = numThreads/4;
         int secondPhaseCountDown = (int) (firstPhaseNumThreads * 0.1);
@@ -41,7 +34,6 @@ public class UploadDayLiftRidesPhases {
 
         long startTime = System.currentTimeMillis();
 
-        System.out.println("Phase1 Started");
         for (int i = 0; i < firstPhaseNumThreads; i++) {
             int startSkierIdRange = getThreadStartSkierIDRange(firstPhaseNumThreads, i);
             int endSkierIdRange = getThreadEndSkierIDRange(firstPhaseNumThreads, i);
@@ -49,7 +41,6 @@ public class UploadDayLiftRidesPhases {
                     .execute(new UploadDayLiftRides(firstPhaseNumThreads, numSkiers, numLifts, numRuns, startSkierIdRange,
                             endSkierIdRange, firstPhaseStartTime, firstPhaseEndTime, 0.1, serverAddress, firstPhaseLatch));
         }
-        total += (int) ((numRuns*0.1)*(numSkiers/firstPhaseNumThreads));
         firstPhaseThreadPool.shutdown();
         firstPhaseLatch.await();
 
@@ -61,7 +52,6 @@ public class UploadDayLiftRidesPhases {
         ExecutorService secondPhaseThreadPool = Executors.newFixedThreadPool(secondPhaseNumThreads);
         CountDownLatch secondPhaseLatch = new CountDownLatch(thirdPhaseCountDown);
 
-        System.out.println("Phase2 Started");
         for (int i = 0; i < secondPhaseNumThreads; i++) {
             int startSkierIdRange = getThreadStartSkierIDRange(secondPhaseNumThreads, i);
             int endSkierIdRange = getThreadEndSkierIDRange(secondPhaseNumThreads, i);
@@ -69,7 +59,6 @@ public class UploadDayLiftRidesPhases {
                     .execute(new UploadDayLiftRides(secondPhaseNumThreads, numSkiers, numLifts, numRuns, startSkierIdRange,
                             endSkierIdRange, secondPhaseStartTime, secondPhaseEndTime, 0.8, serverAddress, secondPhaseLatch));
         }
-        total += (int) ((numRuns*0.8)*(numSkiers/secondPhaseNumThreads));
         secondPhaseThreadPool.shutdown();
         secondPhaseLatch.await();
 
@@ -79,7 +68,6 @@ public class UploadDayLiftRidesPhases {
 
         ExecutorService thirdPhaseThreadPool = Executors.newFixedThreadPool(firstPhaseNumThreads);
 
-        System.out.println("Phase3 Started");
         for (int i = 0; i < thirdPhaseNumThreads; i++) {
             int startSkierIdRange = getThreadStartSkierIDRange(thirdPhaseNumThreads, i);
             int endSkierIdRange = getThreadEndSkierIDRange(thirdPhaseNumThreads, i);
@@ -87,7 +75,6 @@ public class UploadDayLiftRidesPhases {
                     .execute(new UploadDayLiftRides(thirdPhaseNumThreads, numSkiers, numLifts, numRuns, startSkierIdRange,
                             endSkierIdRange, thirdPhaseStartTime, thirdPhaseEndTime, 0.1, serverAddress, null));
         }
-        total += (int) ((numRuns*0.1)*(numSkiers/thirdPhaseNumThreads));
 
         thirdPhaseThreadPool.shutdown();
 
@@ -97,9 +84,13 @@ public class UploadDayLiftRidesPhases {
 
         long endTime = System.currentTimeMillis();
 
-        System.out.println("Number of unsuccessful requests: " + badRequestCounter.get());
+        int unsuccessfulRequest = badRequestCounter.get();
+
+        int totalRequest =  (int) ((((numRuns * 0.1) * (numSkiers / firstPhaseNumThreads)) * firstPhaseNumThreads * 2) + (((numRuns * 0.8) * (numSkiers / secondPhaseNumThreads)) * secondPhaseNumThreads));
+
+        System.out.println("Number of successful requests: " + (totalRequest - unsuccessfulRequest));
+        System.out.println("Number of unsuccessful requests: " + unsuccessfulRequest);
         System.out.println("The total run time (wall time) of the all phases to complete: " + TimeUnit.MILLISECONDS.toSeconds(endTime - startTime));
-        System.out.println("Total : " + total);
     }
 
     private int getThreadStartSkierIDRange(int firstPhaseNumThreads, int threadCounter) {
