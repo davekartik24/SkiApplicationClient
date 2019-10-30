@@ -1,3 +1,6 @@
+package phases;
+
+import analysis.ThreadStatistics;
 import io.swagger.client.ApiClient;
 import io.swagger.client.ApiException;
 import io.swagger.client.ApiResponse;
@@ -74,18 +77,18 @@ public class UploadDayLiftRides implements Runnable {
                 localStats.add(new ThreadStatistics(startTime, endTime, statusCode));
 
                 if (statusCode/100 == 4) {
-                    System.out.println("Error 4xx");
+                    System.out.println("Print 4xx");
                     UploadDayLiftRidesPhases.badRequestCounter.incrementAndGet();
                     logger.error("Invalid inputs supplied");
                 }
 
                 if(statusCode/100 == 5) {
-                    System.out.println("Error 5xx");
+                    System.out.println("Print 5xx");
                     UploadDayLiftRidesPhases.badRequestCounter.incrementAndGet();
                     logger.error("Web Server Error");
                 }
             } catch (ApiException e) {
-                System.out.println("Error" + e.getMessage());
+                System.out.println("Print Error " + e.getMessage());
                 UploadDayLiftRidesPhases.badRequestCounter.incrementAndGet();
                 logger.error("Exception when calling ResortsApi#getResorts");
             }

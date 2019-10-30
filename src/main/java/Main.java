@@ -1,3 +1,5 @@
+import phases.UploadDayLiftRidesPhases;
+
 import java.io.IOException;
 import java.util.Scanner;
 

@@ -1,3 +1,5 @@
+package analysis;
+
 public class ThreadStatistics {
 
     private final long startTime;
