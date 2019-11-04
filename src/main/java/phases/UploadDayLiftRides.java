@@ -55,7 +55,10 @@ public class UploadDayLiftRides implements Runnable {
         List<ThreadStatistics> localStats = new ArrayList<>(numberOfRequest);
 
         for (int i = 0; i < numberOfRequest; i++) {
+            int resortID = ThreadLocalRandom.current().nextInt(1, 11);
             int skierID = ThreadLocalRandom.current().nextInt(startSkierIDRange, endSkierIDRange + 1);
+            String seasonID = "" + ThreadLocalRandom.current().nextInt(2010,  2020);
+            String dayID = "" + ThreadLocalRandom.current().nextInt(1,  367);
             int liftID = ThreadLocalRandom.current().nextInt(1, numLifts + 1);
             int time = ThreadLocalRandom.current().nextInt(startTime, endTime + 1);
 
@@ -68,8 +71,10 @@ public class UploadDayLiftRides implements Runnable {
                 inputLiftRide.setTime(time);
 
                 long startTime = System.currentTimeMillis();
+
                 ApiResponse output = apiInstance
-                        .writeNewLiftRideWithHttpInfo(inputLiftRide,1, "2019", "1", skierID);
+                        .writeNewLiftRideWithHttpInfo(inputLiftRide,resortID, seasonID, dayID, skierID);
+
                 long endTime = System.currentTimeMillis();
 
                 int statusCode = output.getStatusCode();
@@ -80,15 +85,48 @@ public class UploadDayLiftRides implements Runnable {
                     System.out.println("Print 4xx");
                     UploadDayLiftRidesPhases.badRequestCounter.incrementAndGet();
                     logger.error("Invalid inputs supplied");
+                    continue;
                 }
 
                 if(statusCode/100 == 5) {
                     System.out.println("Print 5xx");
                     UploadDayLiftRidesPhases.badRequestCounter.incrementAndGet();
                     logger.error("Web Server Error");
+                    continue;
+                }
+
+                if (latch == null) {
+
+                    SkiersApi getApiInstance = new SkiersApi();
+                    ApiClient getClient = apiInstance.getApiClient();
+                    getClient.setBasePath(serverAddress);
+
+                    startTime = System.currentTimeMillis();
+
+                    output = getApiInstance
+                            .getSkierDayVerticalWithHttpInfo(resortID, seasonID, dayID, skierID);
+
+                    endTime = System.currentTimeMillis();
+
+
+                    statusCode = output.getStatusCode();
+
+                    localStats.add(new ThreadStatistics(startTime, endTime, statusCode));
+
+                    if (statusCode/100 == 4) {
+                        System.out.println("Print 4xx");
+                        UploadDayLiftRidesPhases.badRequestCounter.incrementAndGet();
+                        logger.error("Invalid inputs supplied");
+                    }
+
+                    if(statusCode/100 == 5) {
+                        System.out.println("Print 5xx");
+                        UploadDayLiftRidesPhases.badRequestCounter.incrementAndGet();
+                        logger.error("Web Server Error");
+                    }
                 }
             } catch (ApiException e) {
-                System.out.println("Print Error " + e.getMessage());
+                System.out.println("Print Error " + e);
                 UploadDayLiftRidesPhases.badRequestCounter.incrementAndGet();
                 logger.error("Exception when calling ResortsApi#getResorts");
             }

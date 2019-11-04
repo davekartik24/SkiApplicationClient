@@ -30,7 +30,7 @@ public class UploadDayLiftRidesPhases {
         this.numRuns = numRuns;
         this.serverAddress = serverAddress;
 //        Calculating the total number of request sent to the server based on the requirements.
-        this.totalRequest = (int) ((((numRuns * 0.1) * (numSkiers / (numThreads/4)) * (numThreads/4)) * 2)
+        this.totalRequest = (int) ((((numRuns * 0.1) * (numSkiers / (numThreads/4)) * (numThreads/4)) * 3)
                                 + (((numRuns * 0.8) * (numSkiers / numThreads)) * numThreads));
         this.totalStats = new ArrayBlockingQueue<>(totalRequest);
     }
@@ -39,10 +39,13 @@ public class UploadDayLiftRidesPhases {
 
         phasesStartTime = System.currentTimeMillis();
 
+        System.out.println("First phase");
         ExecutorService firstPhaseThreadPool = firstPhaseInitiate();
 
+        System.out.println("Second phase");
         ExecutorService secondPhaseThreadPool = secondPhaseInitiate();
 
+        System.out.println("Third phase");
         ExecutorService thirdPhaseThreadPool = thirdPhaseInitiate();
 
         firstPhaseThreadPool.awaitTermination(20, TimeUnit.MINUTES);
